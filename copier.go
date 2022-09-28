@@ -138,6 +138,55 @@ func copier(toValue interface{}, fromValue interface{}, opt Option) (err error) 
 		return
 	}
 
+	if fromType.Kind() == reflect.Map && fromType.Key().Kind() == reflect.String && toType.Kind() == reflect.Struct {
+		//字符串map -> struct
+		flgs, err := getFlags(to, from, toType, fromType)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < toType.NumField(); i++ {
+			structField := toType.Field(i)
+			toField := to.Field(i)
+
+			fieldFlags := flgs.BitFlags[structField.Name]
+			if (fieldFlags & tagIgnore) != 0 {
+				continue
+			}
+			srcFieldName, _ := getFieldName(structField.Name, flgs)
+			fromVal := from.MapIndex(reflect.ValueOf(srcFieldName))
+			for fromVal.Kind() == reflect.Interface {
+				fromVal = fromVal.Elem()
+			}
+			if fromVal.IsValid() {
+				if fromVal.IsZero() && opt.IgnoreEmpty {
+					continue
+				}
+				if !set(toField, fromVal, opt.DeepCopy, opt.converters()) {
+					if err := copier(toField.Addr().Interface(), fromVal.Interface(), opt); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		var to1 reflect.Value
+		if to.CanAddr() {
+			to1 = to.Addr()
+		} else {
+			to1 = to
+		}
+		for i := 0; i < to1.NumMethod(); i++ {
+			srcFieldName, destFieldName := getFieldName(to1.Type().Method(i).Name, flgs)
+			toMethod := to1.MethodByName(destFieldName)
+			fromVal := from.MapIndex(reflect.ValueOf(srcFieldName))
+			for fromVal.Kind() == reflect.Interface {
+				fromVal = fromVal.Elem()
+			}
+			if toMethod.IsValid() && fromVal.IsValid() && toMethod.Type().NumIn() == 1 && fromVal.Type().AssignableTo(toMethod.Type().In(0)) {
+				toMethod.Call([]reflect.Value{fromVal})
+			}
+		}
+	}
+
 	if from.Kind() != reflect.Slice && fromType.Kind() == reflect.Map && toType.Kind() == reflect.Map {
 		if !fromType.Key().ConvertibleTo(toType.Key()) {
 			return ErrMapKeyNotMatch

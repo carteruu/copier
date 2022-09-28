@@ -106,6 +106,21 @@ func main() {
 
 	fmt.Printf("%#v \n", map2)
 	// map[int32]int8{3:6, 4:8}
+
+	//Copy map to struct, map key must string
+	map3 := map[string]interface{}{"Name": "Carter"}
+	e := Employee{}
+	copier.Copy(&e, map3)
+
+	fmt.Printf("%#v \n", e)
+	// Employee{
+	//    Name: "Carter",
+	//    Age: 0,
+	//    Salary:0,
+	//    DoubleAge: 0,
+	//    EmployeeId: 0,
+	//    SuperRole: "",
+	// }
 }
 ```
 
